@@ -75,6 +75,20 @@ def run_code(request: CodeRequest):
             os.remove(file_path)
             os.remove(os.path.join(temp_dir, f"{classname}.class"))
 
+        elif language == "php":
+            # PHP execution
+            file_path = os.path.join(temp_dir, f"{unique_id}.php")
+            with open(file_path, "w") as f:
+                f.write(code)
+            result = subprocess.run(
+                ["php", file_path],
+                capture_output=True,
+                text=True,
+                input=user_input,
+                timeout=5
+            )
+            os.remove(file_path)
+
         else:
             return {"error": "Language not supported"}
 
