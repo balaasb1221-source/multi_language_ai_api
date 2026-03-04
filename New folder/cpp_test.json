@@ -1,0 +1,4 @@
+{
+  "language": "c++",
+  "code": "#include <iostream>\nint main(){std::cout<<\"Hello C++\"<<std::endl;return 0;}"
+}

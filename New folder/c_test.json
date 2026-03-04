@@ -1,0 +1,4 @@
+{
+  "language": "c",
+  "code": "#include <stdio.h>\nint main(){printf(\"Hello C\\n\");return 0;}"
+}

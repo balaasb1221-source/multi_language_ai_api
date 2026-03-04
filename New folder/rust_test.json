@@ -1,0 +1,4 @@
+{
+  "language": "rust",
+  "code": "fn main(){ println!(\"Hello Rust\"); }"
+}
