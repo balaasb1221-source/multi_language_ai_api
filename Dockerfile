@@ -1,33 +1,43 @@
-# Use official Python image (slim)
+# Use official Python slim image
 FROM python:3.10-slim
 
-# Install compilers, JDK, wget
-RUN apt-get update && apt-get install -y \
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
     default-jdk \
     wget \
+    curl \
+    ca-certificates \
     php \
+    gnupg \
+    apt-transport-https \
     && rm -rf /var/lib/apt/lists/*
 
-# Install .NET SDK for C#
-RUN wget https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb -O packages-microsoft-prod.deb \
+# Install Microsoft package repository for .NET
+RUN wget https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb \
     && dpkg -i packages-microsoft-prod.deb \
-    && apt-get update \
-    && apt-get install -y dotnet-sdk-7.0 \
     && rm packages-microsoft-prod.deb
+
+# Install .NET SDK (for C#)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    dotnet-sdk-7.0 \
+    && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /app
 
 # Copy project files
-COPY . .
+COPY . /app
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Expose port for Render
+# Expose port
 EXPOSE 10000
 
-# Run FastAPI
+# Start FastAPI server
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "10000"]
