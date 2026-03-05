@@ -18,7 +18,6 @@ def run_code(request: CodeRequest):
     code = request.code
     user_input = request.input
 
-    # Use system temp directory for safety
     temp_dir = tempfile.gettempdir()
     unique_id = str(uuid.uuid4())
 
@@ -76,7 +75,6 @@ def run_code(request: CodeRequest):
             os.remove(os.path.join(temp_dir, f"{classname}.class"))
 
         elif language == "php":
-            # PHP execution
             file_path = os.path.join(temp_dir, f"{unique_id}.php")
             with open(file_path, "w") as f:
                 f.write(code)
@@ -101,3 +99,10 @@ def run_code(request: CodeRequest):
         return {"error": "Execution timed out!"}
     except Exception as e:
         return {"error": str(e)}
+
+
+# Main block to run the API
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 10000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port)

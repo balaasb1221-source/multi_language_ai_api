@@ -1,4 +1,4 @@
-# Use official Python image (slim version)
+# Use Python slim image
 FROM python:3.10-slim
 
 # Install compilers, JDK, and PHP
@@ -6,20 +6,21 @@ RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     default-jdk \
-    php-cli \
+    php \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Set working directory inside container
+# Set working directory
 WORKDIR /app
 
-# Copy all project files into the container
+# Copy all project files
 COPY . .
 
-# Install Python dependencies from requirements.txt
+# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Expose port (for documentation / Render)
+# Expose the port your FastAPI app will run on
 EXPOSE 10000
 
-# Start FastAPI using Render's dynamic PORT environment variable
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "$PORT"]
+# Start FastAPI using uvicorn
+CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "10000"]
