@@ -22,11 +22,11 @@ def run_code(request: CodeRequest):
     code = request.code
     user_input = request.input
 
-    # Create unique temp folder
     temp_dir = tempfile.mkdtemp()
-    unique_id = str(uuid.uuid4())
 
     try:
+
+        result = None
 
         # ================= PYTHON =================
         if language == "python":
@@ -100,7 +100,7 @@ def run_code(request: CodeRequest):
         elif language == "java":
 
             classname = "Main"
-            file_path = os.path.join(temp_dir, f"{classname}.java")
+            file_path = os.path.join(temp_dir, "Main.java")
 
             with open(file_path, "w") as f:
                 f.write(code)
@@ -222,12 +222,54 @@ def run_code(request: CodeRequest):
                 timeout=5
             )
 
+        # ================= RUST =================
+        elif language == "rust":
+
+            file_path = os.path.join(temp_dir, "program.rs")
+            exe_path = os.path.join(temp_dir, "program")
+
+            with open(file_path, "w") as f:
+                f.write(code)
+
+            compile_proc = subprocess.run(
+                ["rustc", file_path, "-o", exe_path],
+                capture_output=True,
+                text=True
+            )
+
+            if compile_proc.returncode != 0:
+                return {"error": compile_proc.stderr}
+
+            result = subprocess.run(
+                [exe_path],
+                capture_output=True,
+                text=True,
+                input=user_input,
+                timeout=5
+            )
+
+        # ================= SWIFT =================
+        elif language == "swift":
+
+            file_path = os.path.join(temp_dir, "program.swift")
+
+            with open(file_path, "w") as f:
+                f.write(code)
+
+            result = subprocess.run(
+                ["swift", file_path],
+                capture_output=True,
+                text=True,
+                input=user_input,
+                timeout=5
+            )
+
         else:
             return {"error": "Language not supported"}
 
         return {
-            "output": result.stdout,
-            "error": result.stderr
+            "output": result.stdout if result else "",
+            "error": result.stderr if result else ""
         }
 
     except subprocess.TimeoutExpired:
@@ -237,7 +279,6 @@ def run_code(request: CodeRequest):
         return {"error": str(e)}
 
     finally:
-        # Cleanup temp folder
         shutil.rmtree(temp_dir, ignore_errors=True)
 
 
