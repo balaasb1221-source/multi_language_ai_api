@@ -148,38 +148,34 @@ def run_code(request: CodeRequest):
         # C#
         elif language == "csharp":
 
-            project_path = os.path.join(temp_dir, unique_id)
-            os.makedirs(project_path, exist_ok=True)
+            file_path = os.path.join(temp_dir, f"{unique_id}.cs")
+            exe_path = os.path.join(temp_dir, f"{unique_id}.exe")
 
-            program_file = os.path.join(project_path, "Program.cs")
-
-            with open(program_file, "w") as f:
+            with open(file_path, "w") as f:
                 f.write(code)
 
-            subprocess.run(
-                ["dotnet", "new", "console", "-o", project_path, "--force"],
+            compile_proc = subprocess.run(
+                ["mcs", file_path, "-out:" + exe_path],
                 capture_output=True,
                 text=True
             )
 
-            build_proc = subprocess.run(
-                ["dotnet", "build", project_path],
-                capture_output=True,
-                text=True
-            )
-
-            if build_proc.returncode != 0:
-                return {"error": build_proc.stderr}
+            if compile_proc.returncode != 0:
+                os.remove(file_path)
+                return {"error": compile_proc.stderr}
 
             result = subprocess.run(
-                ["dotnet", "run", "--project", project_path],
+                ["mono", exe_path],
                 capture_output=True,
                 text=True,
                 input=user_input,
                 timeout=5
             )
 
-        # R LANGUAGE
+            os.remove(file_path)
+            os.remove(exe_path)
+
+        # R
         elif language == "r":
 
             file_path = os.path.join(temp_dir, f"{unique_id}.R")
