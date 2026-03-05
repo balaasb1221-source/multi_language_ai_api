@@ -87,6 +87,23 @@ def run_code(request: CodeRequest):
             )
             os.remove(file_path)
 
+        elif language == "csharp":
+            # Prepare temporary folder for dotnet project
+            project_path = os.path.join(temp_dir, unique_id)
+            os.makedirs(project_path, exist_ok=True)
+            with open(os.path.join(project_path, "Program.cs"), "w") as f:
+                f.write(code)
+
+            # Initialize dotnet project and build
+            subprocess.run(["dotnet", "new", "console", "-o", project_path, "--force"], capture_output=True, text=True)
+            build_proc = subprocess.run(["dotnet", "build", project_path, "-c", "Release"], capture_output=True, text=True)
+            if build_proc.returncode != 0:
+                return {"error": f"C# COMPILATION ERROR:\n{build_proc.stderr}"}
+
+            # Run the project
+            result = subprocess.run(["dotnet", "run", "--project", project_path],
+                                    capture_output=True, text=True, input=user_input, timeout=5)
+
         else:
             return {"error": "Language not supported"}
 
@@ -100,8 +117,7 @@ def run_code(request: CodeRequest):
     except Exception as e:
         return {"error": str(e)}
 
-
-# Main block to run the API
+# Run with python main.py
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 10000))
