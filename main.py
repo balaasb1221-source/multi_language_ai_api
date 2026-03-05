@@ -7,10 +7,12 @@ import tempfile
 
 app = FastAPI(title="Multi-Language Code Runner API")
 
+
 class CodeRequest(BaseModel):
     language: str
     code: str
     input: str = ""
+
 
 @app.post("/run")
 def run_code(request: CodeRequest):
@@ -24,8 +26,9 @@ def run_code(request: CodeRequest):
 
     try:
 
-        # PYTHON
+        # ================= PYTHON =================
         if language == "python":
+
             file_path = os.path.join(temp_dir, f"{unique_id}.py")
 
             with open(file_path, "w") as f:
@@ -41,8 +44,9 @@ def run_code(request: CodeRequest):
 
             os.remove(file_path)
 
-        # C
+        # ================= C =================
         elif language == "c":
+
             file_path = os.path.join(temp_dir, f"{unique_id}.c")
             exe_path = os.path.join(temp_dir, unique_id)
 
@@ -70,8 +74,9 @@ def run_code(request: CodeRequest):
             os.remove(file_path)
             os.remove(exe_path)
 
-        # C++
+        # ================= C++ =================
         elif language == "cpp":
+
             file_path = os.path.join(temp_dir, f"{unique_id}.cpp")
             exe_path = os.path.join(temp_dir, unique_id)
 
@@ -99,8 +104,9 @@ def run_code(request: CodeRequest):
             os.remove(file_path)
             os.remove(exe_path)
 
-        # JAVA
+        # ================= JAVA =================
         elif language == "java":
+
             classname = "Main"
             file_path = os.path.join(temp_dir, f"{classname}.java")
 
@@ -128,8 +134,9 @@ def run_code(request: CodeRequest):
             os.remove(file_path)
             os.remove(os.path.join(temp_dir, f"{classname}.class"))
 
-        # PHP
+        # ================= PHP =================
         elif language == "php":
+
             file_path = os.path.join(temp_dir, f"{unique_id}.php")
 
             with open(file_path, "w") as f:
@@ -145,7 +152,7 @@ def run_code(request: CodeRequest):
 
             os.remove(file_path)
 
-        # C#
+        # ================= C# =================
         elif language == "csharp":
 
             file_path = os.path.join(temp_dir, f"{unique_id}.cs")
@@ -175,7 +182,7 @@ def run_code(request: CodeRequest):
             os.remove(file_path)
             os.remove(exe_path)
 
-        # R
+        # ================= R =================
         elif language == "r":
 
             file_path = os.path.join(temp_dir, f"{unique_id}.R")
@@ -185,6 +192,54 @@ def run_code(request: CodeRequest):
 
             result = subprocess.run(
                 ["Rscript", file_path],
+                capture_output=True,
+                text=True,
+                input=user_input,
+                timeout=5
+            )
+
+            os.remove(file_path)
+
+        # ================= KOTLIN =================
+        elif language == "kotlin":
+
+            file_path = os.path.join(temp_dir, f"{unique_id}.kt")
+            jar_path = os.path.join(temp_dir, f"{unique_id}.jar")
+
+            with open(file_path, "w") as f:
+                f.write(code)
+
+            compile_proc = subprocess.run(
+                ["kotlinc", file_path, "-include-runtime", "-d", jar_path],
+                capture_output=True,
+                text=True
+            )
+
+            if compile_proc.returncode != 0:
+                os.remove(file_path)
+                return {"error": compile_proc.stderr}
+
+            result = subprocess.run(
+                ["java", "-jar", jar_path],
+                capture_output=True,
+                text=True,
+                input=user_input,
+                timeout=5
+            )
+
+            os.remove(file_path)
+            os.remove(jar_path)
+
+        # ================= GO =================
+        elif language == "go":
+
+            file_path = os.path.join(temp_dir, f"{unique_id}.go")
+
+            with open(file_path, "w") as f:
+                f.write(code)
+
+            result = subprocess.run(
+                ["go", "run", file_path],
                 capture_output=True,
                 text=True,
                 input=user_input,
