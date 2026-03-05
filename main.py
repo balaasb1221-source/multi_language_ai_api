@@ -4,6 +4,7 @@ import subprocess
 import os
 import uuid
 import tempfile
+import shutil
 
 app = FastAPI(title="Multi-Language Code Runner API")
 
@@ -21,7 +22,8 @@ def run_code(request: CodeRequest):
     code = request.code
     user_input = request.input
 
-    temp_dir = tempfile.gettempdir()
+    # Create unique temp folder
+    temp_dir = tempfile.mkdtemp()
     unique_id = str(uuid.uuid4())
 
     try:
@@ -29,7 +31,7 @@ def run_code(request: CodeRequest):
         # ================= PYTHON =================
         if language == "python":
 
-            file_path = os.path.join(temp_dir, f"{unique_id}.py")
+            file_path = os.path.join(temp_dir, "script.py")
 
             with open(file_path, "w") as f:
                 f.write(code)
@@ -42,13 +44,11 @@ def run_code(request: CodeRequest):
                 timeout=5
             )
 
-            os.remove(file_path)
-
         # ================= C =================
         elif language == "c":
 
-            file_path = os.path.join(temp_dir, f"{unique_id}.c")
-            exe_path = os.path.join(temp_dir, unique_id)
+            file_path = os.path.join(temp_dir, "program.c")
+            exe_path = os.path.join(temp_dir, "program")
 
             with open(file_path, "w") as f:
                 f.write(code)
@@ -60,7 +60,6 @@ def run_code(request: CodeRequest):
             )
 
             if compile_proc.returncode != 0:
-                os.remove(file_path)
                 return {"error": compile_proc.stderr}
 
             result = subprocess.run(
@@ -71,14 +70,11 @@ def run_code(request: CodeRequest):
                 timeout=5
             )
 
-            os.remove(file_path)
-            os.remove(exe_path)
-
         # ================= C++ =================
         elif language == "cpp":
 
-            file_path = os.path.join(temp_dir, f"{unique_id}.cpp")
-            exe_path = os.path.join(temp_dir, unique_id)
+            file_path = os.path.join(temp_dir, "program.cpp")
+            exe_path = os.path.join(temp_dir, "program")
 
             with open(file_path, "w") as f:
                 f.write(code)
@@ -90,7 +86,6 @@ def run_code(request: CodeRequest):
             )
 
             if compile_proc.returncode != 0:
-                os.remove(file_path)
                 return {"error": compile_proc.stderr}
 
             result = subprocess.run(
@@ -100,9 +95,6 @@ def run_code(request: CodeRequest):
                 input=user_input,
                 timeout=5
             )
-
-            os.remove(file_path)
-            os.remove(exe_path)
 
         # ================= JAVA =================
         elif language == "java":
@@ -120,7 +112,6 @@ def run_code(request: CodeRequest):
             )
 
             if compile_proc.returncode != 0:
-                os.remove(file_path)
                 return {"error": compile_proc.stderr}
 
             result = subprocess.run(
@@ -131,13 +122,10 @@ def run_code(request: CodeRequest):
                 timeout=5
             )
 
-            os.remove(file_path)
-            os.remove(os.path.join(temp_dir, f"{classname}.class"))
-
         # ================= PHP =================
         elif language == "php":
 
-            file_path = os.path.join(temp_dir, f"{unique_id}.php")
+            file_path = os.path.join(temp_dir, "script.php")
 
             with open(file_path, "w") as f:
                 f.write(code)
@@ -150,13 +138,11 @@ def run_code(request: CodeRequest):
                 timeout=5
             )
 
-            os.remove(file_path)
-
         # ================= C# =================
         elif language == "csharp":
 
-            file_path = os.path.join(temp_dir, f"{unique_id}.cs")
-            exe_path = os.path.join(temp_dir, f"{unique_id}.exe")
+            file_path = os.path.join(temp_dir, "program.cs")
+            exe_path = os.path.join(temp_dir, "program.exe")
 
             with open(file_path, "w") as f:
                 f.write(code)
@@ -168,7 +154,6 @@ def run_code(request: CodeRequest):
             )
 
             if compile_proc.returncode != 0:
-                os.remove(file_path)
                 return {"error": compile_proc.stderr}
 
             result = subprocess.run(
@@ -179,13 +164,10 @@ def run_code(request: CodeRequest):
                 timeout=5
             )
 
-            os.remove(file_path)
-            os.remove(exe_path)
-
         # ================= R =================
         elif language == "r":
 
-            file_path = os.path.join(temp_dir, f"{unique_id}.R")
+            file_path = os.path.join(temp_dir, "script.R")
 
             with open(file_path, "w") as f:
                 f.write(code)
@@ -198,13 +180,11 @@ def run_code(request: CodeRequest):
                 timeout=5
             )
 
-            os.remove(file_path)
-
         # ================= KOTLIN =================
         elif language == "kotlin":
 
-            file_path = os.path.join(temp_dir, f"{unique_id}.kt")
-            jar_path = os.path.join(temp_dir, f"{unique_id}.jar")
+            file_path = os.path.join(temp_dir, "Program.kt")
+            jar_path = os.path.join(temp_dir, "program.jar")
 
             with open(file_path, "w") as f:
                 f.write(code)
@@ -216,7 +196,6 @@ def run_code(request: CodeRequest):
             )
 
             if compile_proc.returncode != 0:
-                os.remove(file_path)
                 return {"error": compile_proc.stderr}
 
             result = subprocess.run(
@@ -227,13 +206,10 @@ def run_code(request: CodeRequest):
                 timeout=5
             )
 
-            os.remove(file_path)
-            os.remove(jar_path)
-
         # ================= GO =================
         elif language == "go":
 
-            file_path = os.path.join(temp_dir, f"{unique_id}.go")
+            file_path = os.path.join(temp_dir, "program.go")
 
             with open(file_path, "w") as f:
                 f.write(code)
@@ -245,8 +221,6 @@ def run_code(request: CodeRequest):
                 input=user_input,
                 timeout=5
             )
-
-            os.remove(file_path)
 
         else:
             return {"error": "Language not supported"}
@@ -261,6 +235,10 @@ def run_code(request: CodeRequest):
 
     except Exception as e:
         return {"error": str(e)}
+
+    finally:
+        # Cleanup temp folder
+        shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 if __name__ == "__main__":
