@@ -1,288 +1,158 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-import subprocess
+import asyncio
 import os
-import uuid
-import tempfile
+import hashlib
 import shutil
 
-app = FastAPI(title="Multi-Language Code Runner API")
+app = FastAPI(title="Multi-Language Async Code Runner API")
 
+# Persistent folder for code execution
+BASE_TEMP_DIR = "/tmp/code_runner"
+os.makedirs(BASE_TEMP_DIR, exist_ok=True)
 
 class CodeRequest(BaseModel):
     language: str
     code: str
     input: str = ""
 
+async def run_subprocess(cmd, input_text="", timeout=5):
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await asyncio.wait_for(
+            proc.communicate(input=input_text.encode()),
+            timeout=timeout
+        )
+        return stdout.decode(), stderr.decode()
+    except asyncio.TimeoutError:
+        return "", "Execution timed out!"
+
+def hash_code(code: str) -> str:
+    """Generate a hash for the code to use as filename for caching compiled binaries"""
+    return hashlib.sha256(code.encode()).hexdigest()
 
 @app.post("/run")
-def run_code(request: CodeRequest):
-
+async def run_code(request: CodeRequest):
     language = request.language.lower()
     code = request.code
     user_input = request.input
-
-    temp_dir = tempfile.mkdtemp()
+    code_hash = hash_code(code)
+    temp_dir = os.path.join(BASE_TEMP_DIR, code_hash)
+    os.makedirs(temp_dir, exist_ok=True)
 
     try:
-
-        result = None
-
-        # ================= PYTHON =================
+        # ------------------- Python -------------------
         if language == "python":
-
             file_path = os.path.join(temp_dir, "script.py")
-
             with open(file_path, "w") as f:
                 f.write(code)
+            stdout, stderr = await run_subprocess(["python3", file_path], user_input, timeout=5)
 
-            result = subprocess.run(
-                ["python3", file_path],
-                capture_output=True,
-                text=True,
-                input=user_input,
-                timeout=5
-            )
-
-        # ================= C =================
+        # ------------------- C -------------------
         elif language == "c":
-
             file_path = os.path.join(temp_dir, "program.c")
             exe_path = os.path.join(temp_dir, "program")
-
             with open(file_path, "w") as f:
                 f.write(code)
+            if not os.path.exists(exe_path):
+                compile_stdout, compile_stderr = await run_subprocess(["gcc", file_path, "-o", exe_path], timeout=10)
+                if compile_stderr:
+                    return {"error": compile_stderr}
+            stdout, stderr = await run_subprocess([exe_path], user_input, timeout=5)
 
-            compile_proc = subprocess.run(
-                ["gcc", file_path, "-o", exe_path],
-                capture_output=True,
-                text=True
-            )
-
-            if compile_proc.returncode != 0:
-                return {"error": compile_proc.stderr}
-
-            result = subprocess.run(
-                [exe_path],
-                capture_output=True,
-                text=True,
-                input=user_input,
-                timeout=5
-            )
-
-        # ================= C++ =================
+        # ------------------- C++ -------------------
         elif language == "cpp":
-
             file_path = os.path.join(temp_dir, "program.cpp")
             exe_path = os.path.join(temp_dir, "program")
-
             with open(file_path, "w") as f:
                 f.write(code)
+            if not os.path.exists(exe_path):
+                compile_stdout, compile_stderr = await run_subprocess(["g++", file_path, "-o", exe_path], timeout=10)
+                if compile_stderr:
+                    return {"error": compile_stderr}
+            stdout, stderr = await run_subprocess([exe_path], user_input, timeout=5)
 
-            compile_proc = subprocess.run(
-                ["g++", file_path, "-o", exe_path],
-                capture_output=True,
-                text=True
-            )
-
-            if compile_proc.returncode != 0:
-                return {"error": compile_proc.stderr}
-
-            result = subprocess.run(
-                [exe_path],
-                capture_output=True,
-                text=True,
-                input=user_input,
-                timeout=5
-            )
-
-        # ================= JAVA =================
+        # ------------------- Java -------------------
         elif language == "java":
-
             classname = "Main"
-            file_path = os.path.join(temp_dir, "Main.java")
-
+            file_path = os.path.join(temp_dir, f"{classname}.java")
+            class_file = os.path.join(temp_dir, f"{classname}.class")
             with open(file_path, "w") as f:
                 f.write(code)
+            if not os.path.exists(class_file):
+                compile_stdout, compile_stderr = await run_subprocess(["javac", file_path], timeout=10)
+                if compile_stderr:
+                    return {"error": compile_stderr}
+            stdout, stderr = await run_subprocess(["java", "-cp", temp_dir, classname], user_input, timeout=5)
 
-            compile_proc = subprocess.run(
-                ["javac", file_path],
-                capture_output=True,
-                text=True
-            )
-
-            if compile_proc.returncode != 0:
-                return {"error": compile_proc.stderr}
-
-            result = subprocess.run(
-                ["java", "-cp", temp_dir, classname],
-                capture_output=True,
-                text=True,
-                input=user_input,
-                timeout=5
-            )
-
-        # ================= PHP =================
+        # ------------------- PHP -------------------
         elif language == "php":
-
             file_path = os.path.join(temp_dir, "script.php")
-
             with open(file_path, "w") as f:
                 f.write(code)
+            stdout, stderr = await run_subprocess(["php", file_path], user_input, timeout=5)
 
-            result = subprocess.run(
-                ["php", file_path],
-                capture_output=True,
-                text=True,
-                input=user_input,
-                timeout=5
-            )
-
-        # ================= C# =================
-        elif language == "csharp":
-
-            file_path = os.path.join(temp_dir, "program.cs")
-            exe_path = os.path.join(temp_dir, "program.exe")
-
-            with open(file_path, "w") as f:
-                f.write(code)
-
-            compile_proc = subprocess.run(
-                ["mcs", file_path, "-out:" + exe_path],
-                capture_output=True,
-                text=True
-            )
-
-            if compile_proc.returncode != 0:
-                return {"error": compile_proc.stderr}
-
-            result = subprocess.run(
-                ["mono", exe_path],
-                capture_output=True,
-                text=True,
-                input=user_input,
-                timeout=5
-            )
-
-        # ================= R =================
-        elif language == "r":
-
-            file_path = os.path.join(temp_dir, "script.R")
-
-            with open(file_path, "w") as f:
-                f.write(code)
-
-            result = subprocess.run(
-                ["Rscript", file_path],
-                capture_output=True,
-                text=True,
-                input=user_input,
-                timeout=5
-            )
-
-        # ================= KOTLIN =================
-        elif language == "kotlin":
-
-            file_path = os.path.join(temp_dir, "Program.kt")
-            jar_path = os.path.join(temp_dir, "program.jar")
-
-            with open(file_path, "w") as f:
-                f.write(code)
-
-            compile_proc = subprocess.run(
-                ["kotlinc", file_path, "-include-runtime", "-d", jar_path],
-                capture_output=True,
-                text=True
-            )
-
-            if compile_proc.returncode != 0:
-                return {"error": compile_proc.stderr}
-
-            result = subprocess.run(
-                ["java", "-jar", jar_path],
-                capture_output=True,
-                text=True,
-                input=user_input,
-                timeout=5
-            )
-
-        # ================= GO =================
+        # ------------------- Go -------------------
         elif language == "go":
-
             file_path = os.path.join(temp_dir, "program.go")
-
             with open(file_path, "w") as f:
                 f.write(code)
+            stdout, stderr = await run_subprocess(["go", "run", file_path], user_input, timeout=10)
 
-            result = subprocess.run(
-                ["go", "run", file_path],
-                capture_output=True,
-                text=True,
-                input=user_input,
-                timeout=5
-            )
-
-        # ================= RUST =================
+        # ------------------- Rust -------------------
         elif language == "rust":
-
             file_path = os.path.join(temp_dir, "program.rs")
             exe_path = os.path.join(temp_dir, "program")
-
             with open(file_path, "w") as f:
                 f.write(code)
+            if not os.path.exists(exe_path):
+                compile_stdout, compile_stderr = await run_subprocess(["rustc", file_path, "-o", exe_path], timeout=10)
+                if compile_stderr:
+                    return {"error": compile_stderr}
+            stdout, stderr = await run_subprocess([exe_path], user_input, timeout=5)
 
-            compile_proc = subprocess.run(
-                ["rustc", file_path, "-o", exe_path],
-                capture_output=True,
-                text=True
-            )
-
-            if compile_proc.returncode != 0:
-                return {"error": compile_proc.stderr}
-
-            result = subprocess.run(
-                [exe_path],
-                capture_output=True,
-                text=True,
-                input=user_input,
-                timeout=5
-            )
-
-        # ================= SWIFT =================
-        elif language == "swift":
-
-            file_path = os.path.join(temp_dir, "program.swift")
-
+        # ------------------- Kotlin -------------------
+        elif language == "kotlin":
+            file_path = os.path.join(temp_dir, "Program.kt")
+            jar_path = os.path.join(temp_dir, "program.jar")
             with open(file_path, "w") as f:
                 f.write(code)
+            if not os.path.exists(jar_path):
+                compile_stdout, compile_stderr = await run_subprocess(
+                    ["kotlinc", file_path, "-include-runtime", "-d", jar_path], timeout=10
+                )
+                if compile_stderr:
+                    return {"error": compile_stderr}
+            stdout, stderr = await run_subprocess(["java", "-jar", jar_path], user_input, timeout=5)
 
-            result = subprocess.run(
-                ["swift", file_path],
-                capture_output=True,
-                text=True,
-                input=user_input,
-                timeout=5
-            )
+        # ------------------- R -------------------
+        elif language == "r":
+            file_path = os.path.join(temp_dir, "script.R")
+            with open(file_path, "w") as f:
+                f.write(code)
+            stdout, stderr = await run_subprocess(["Rscript", file_path], user_input, timeout=5)
+
+        # ------------------- C# -------------------
+        elif language == "csharp":
+            file_path = os.path.join(temp_dir, "program.cs")
+            exe_path = os.path.join(temp_dir, "program.exe")
+            with open(file_path, "w") as f:
+                f.write(code)
+            if not os.path.exists(exe_path):
+                compile_stdout, compile_stderr = await run_subprocess(["mcs", file_path, "-out:" + exe_path], timeout=10)
+                if compile_stderr:
+                    return {"error": compile_stderr}
+            stdout, stderr = await run_subprocess(["mono", exe_path], user_input, timeout=5)
 
         else:
-            return {"error": "Language not supported"}
+            return {"error": "Language not supported yet"}
 
-        return {
-            "output": result.stdout if result else "",
-            "error": result.stderr if result else ""
-        }
-
-    except subprocess.TimeoutExpired:
-        return {"error": "Execution timed out!"}
+        return {"output": stdout, "error": stderr}
 
     except Exception as e:
         return {"error": str(e)}
-
-    finally:
-        shutil.rmtree(temp_dir, ignore_errors=True)
-
-
-if __name__ == "__main__":
-    import uvicorn
-    port = int(os.environ.get("PORT", 10000))
-    uvicorn.run("main:app", host="0.0.0.0", port=port)
